@@ -12,7 +12,7 @@ class VideoProcessor:
         """Initialize the VideoProcessor with Gemini client."""
         self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
         genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel('gemini-2.0-flash')
+        self.model = genai.GenerativeModel('models/gemini-2.5-flash')
         
     def extract_frames(self, video_path: str, frame_interval: int = 5) -> List[str]:
         """
@@ -63,7 +63,15 @@ class VideoProcessor:
             })
         
         # Create the prompt
-        prompt = "These are frames from a video that I want to upload. Generate only one compelling description that I can upload along with the video. Description should describe every detail in the video. This will be narrated for people who can not see as a story, so it should be very interesting and engaging. This should be like a book."
+        prompt = """These are frames from a video that I want to upload. 
+        Generate only one compelling description that I can upload along with the 
+        video. Description should describe every detail in the video. This will 
+        be narrated for people who can not see as a story, so it should be very 
+        interesting and engaging. This should be like a book. Start right into the 
+        story. You can descript the scence like a book, but do not anything like The 
+        scene opens on that makes it not like the story. You can add soound effects 
+        and wrap around with [], like [gunshot], [applause], [clapping], [explosion], 
+        [swallows], [gulps] ..."""
         
         # Generate content using Gemini
         response = self.model.generate_content(
@@ -72,7 +80,7 @@ class VideoProcessor:
                 "temperature": 0.4,
                 "top_p": 1,
                 "top_k": 32,
-                "max_output_tokens": 500,
+                "max_output_tokens": 1000000000,
             },
             safety_settings={
                 HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
@@ -100,7 +108,7 @@ def main():
     
     # Extract frames
     print("Extracting frames...")
-    frames = processor.extract_frames(video_path, 30)
+    frames = processor.extract_frames(video_path, 10) # modify based on the video length
     print(f"Extracted {len(frames)} frames")
     
     # Generate description
