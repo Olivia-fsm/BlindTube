@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Audio Description App</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Tone.js for background sound -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .message-box {
+            min-height: 120px;
+            background-color: #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.125rem; /* text-lg */
+            color: #334155; /* slate-700 */
+            text-align: center;
+            line-height: 1.6;
+            word-wrap: break-word;
+        }
+        .voice-icon {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.05);
+                opacity: 0.8;
+            }
+        }
+        .play-pause-button {
+            background-color: #4CAF50; /* Green */
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.125rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .play-pause-button:hover {
+            background-color: #45a049;
+        }
+        .play-pause-button:disabled {
+            background-color: #cbd5e1; /* slate-300 */
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6; /* blue-500 */
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-3xl font-bold text-gray-800">Movie Audio Description</h1>
+        <p class="text-gray-600">Interact with the voice agent to get audio descriptions of movie scenes.</p>
+
+        <div class="message-box" id="messageBox">
+            <svg id="listeningIcon" class="w-8 h-8 text-blue-500 hidden voice-icon" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path></svg>
+            <span id="messageText">Click "Start Voice Agent" to begin.</span>
+        </div>
+
+        <button id="startButton" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl shadow-md transition duration-300 ease-in-out flex items-center justify-center gap-2">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            <span id="startButtonText">Start Voice Agent</span>
+        </button>
+
+        <button id="playPauseButton" class="play-pause-button hidden" disabled>
+            <svg id="playIcon" class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
+            <svg id="pauseIcon" class="w-6 h-6 hidden" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+            <span id="playPauseButtonText">Play Description</span>
+        </button>
+
+        <div id="loadingSpinner" class="hidden loading-spinner"></div>
+    </div>
+
+    <script type="module">
+        // Firebase imports for authentication
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // DOM Elements
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+        const listeningIcon = document.getElementById('listeningIcon');
+        const startButton = document.getElementById('startButton');
+        const startButtonText = document.getElementById('startButtonText');
+        const playPauseButton = document.getElementById('playPauseButton');
+        const playIcon = document.getElementById('playIcon');
+        const pauseIcon = document.getElementById('pauseIcon');
+        const playPauseButtonText = document.getElementById('playPauseButtonText');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+
+        // Firebase variables
+        let app;
+        let db;
+        let auth;
+        let userId = 'anonymous'; // Default to anonymous
+        let isAuthReady = false;
+
+        // Voice Agent State
+        const STATE_IDLE = 'IDLE';
+        const STATE_WAITING_FOR_MOVIE = 'WAITING_FOR_MOVIE';
+        const STATE_WAITING_FOR_LENGTH = 'WAITING_FOR_LENGTH';
+        const STATE_PROCESSING = 'PROCESSING';
+        const STATE_READY_TO_PLAY = 'READY_TO_PLAY';
+
+        let currentState = STATE_IDLE;
+        let selectedMovie = '';
+        let speechRecognition;
+        let speechSynthesisUtterance;
+        let speaking = false; // Track if the agent is currently speaking
+        let backgroundSynth; // Tone.js synth for background sound
+
+        // --- Firebase Initialization ---
+        // Global variables provided by the Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        /**
+         * Initializes Firebase and authenticates the user.
+         */
+        const initializeFirebase = async () => {
+            if (firebaseConfig) {
+                try {
+                    app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+
+                    // Sign in using custom token if provided, otherwise anonymously
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                        console.log('Signed in with custom token.');
+                    } else {
+                        await signInAnonymously(auth);
+                        console.log('Signed in anonymously.');
+                    }
+
+                    // Listen for auth state changes to get the user ID
+                    onAuthStateChanged(auth, (user) => {
+                        if (user) {
+                            userId = user.uid;
+                            console.log('User ID:', userId);
+                        } else {
+                            userId = crypto.randomUUID(); // Fallback for truly anonymous or unauthenticated states
+                            console.log('No user signed in. Using a random UUID:', userId);
+                        }
+                        isAuthReady = true;
+                        // For multi-user apps, mandatory to show user ID on UI.
+                        // messageText.textContent = `User ID: ${userId}. ${messageText.textContent}`;
+                    });
+
+                } catch (error) {
+                    console.error("Error initializing Firebase or authenticating:", error);
+                    showMessage("Error: Could not initialize app services. Please try again later.");
+                }
+            } else {
+                console.warn("Firebase config not found. App will run without Firebase services.");
+                isAuthReady = true; // Still allow app to function without persistence
+            }
+        };
+
+        // --- UI Utility Functions ---
+
+        /**
+         * Displays a message in the message box.
+         * @param {string} msg - The message to display.
+         * @param {boolean} showListeningIcon - Whether to show the listening icon.
+         */
+        function showMessage(msg, showListeningIcon = false) {
+            messageText.textContent = msg;
+            if (showListeningIcon) {
+                listeningIcon.classList.remove('hidden');
+            } else {
+                listeningIcon.classList.add('hidden');
+            }
+        }
+
+        /**
+         * Shows or hides the loading spinner.
+         * @param {boolean} show - True to show, false to hide.
+         */
+        function showLoading(show) {
+            if (show) {
+                loadingSpinner.classList.remove('hidden');
+                startButton.disabled = true;
+                startButtonText.textContent = 'Processing...';
+                playPauseButton.classList.add('hidden');
+            } else {
+                loadingSpinner.classList.add('hidden');
+                startButton.disabled = false;
+                startButtonText.textContent = 'Start Voice Agent';
+            }
+        }
+
+        /**
+         * Updates the play/pause button state.
+         * @param {string} state - 'play' or 'pause' or 'hidden'.
+         */
+        function updatePlayPauseButton(state) {
+            if (state === 'hidden') {
+                playPauseButton.classList.add('hidden');
+                playPauseButton.disabled = true;
+            } else {
+                playPauseButton.classList.remove('hidden');
+                playPauseButton.disabled = false;
+                if (state === 'play') {
+                    playIcon.classList.remove('hidden');
+                    pauseIcon.classList.add('hidden');
+                    playPauseButtonText.textContent = 'Play Description';
+                } else if (state === 'pause') {
+                    playIcon.classList.add('hidden');
+                    pauseIcon.classList.remove('hidden');
+                    playPauseButtonText.textContent = 'Pause Description';
+                }
+            }
+        }
+
+        // --- Web Speech API (Speech Recognition & Synthesis) ---
+
+        /**
+         * Initializes SpeechRecognition and SpeechSynthesis.
+         */
+        function initSpeechRecognition() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                showMessage("Speech Recognition not supported in this browser. Please use Chrome or Edge.");
+                startButton.disabled = true;
+                return;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            speechRecognition = new SpeechRecognition();
+            speechRecognition.continuous = false; // Only get one result per recognition start
+            speechRecognition.interimResults = false;
+            speechRecognition.lang = 'en-US';
+
+            speechSynthesisUtterance = new SpeechSynthesisUtterance();
+            speechSynthesisUtterance.lang = 'en-US';
+            speechSynthesisUtterance.volume = 1;
+            speechSynthesisUtterance.rate = 1;
+            speechSynthesisUtterance.pitch = 1;
+
+            // Event Listeners for Speech Recognition
+            speechRecognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript.trim().toLowerCase();
+                console.log('User said:', transcript);
+                handleSpeechResult(transcript);
+            };
+
+            speechRecognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                if (event.error === 'no-speech') {
+                    showMessage("Didn't hear anything. Please try again.");
+                    // In a real app, you might re-prompt or restart listening
+                } else if (event.error === 'not-allowed') {
+                    showMessage("Microphone access denied. Please allow microphone in browser settings.");
+                    startButton.disabled = true;
+                } else {
+                    showMessage(`Speech recognition error: ${event.error}. Please try again.`);
+                }
+                listeningIcon.classList.add('hidden'); // Hide icon on error
+                startButton.disabled = false; // Re-enable button
+                startButtonText.textContent = 'Start Voice Agent';
+            };
+
+            speechRecognition.onend = () => {
+                if (!speaking && currentState !== STATE_PROCESSING) { // Only hide if not speaking and not processing
+                    listeningIcon.classList.add('hidden');
+                    if (currentState !== STATE_READY_TO_PLAY && currentState !== STATE_IDLE) {
+                         // If not in a final state, restart listening if needed (e.g., waiting for input)
+                         // For simplicity, we won't auto-restart in this example, user clicks again.
+                    }
+                }
+            };
+
+            // Event Listener for Speech Synthesis (Agent's voice)
+            speechSynthesisUtterance.onstart = () => {
+                speaking = true;
+                listeningIcon.classList.add('hidden'); // Hide listening icon when agent is speaking
+            };
+            speechSynthesisUtterance.onend = () => {
+                speaking = false;
+                if (currentState === STATE_WAITING_FOR_MOVIE || currentState === STATE_WAITING_FOR_LENGTH) {
+                    // If agent finished speaking and waiting for user input, restart listening
+                    try {
+                        speechRecognition.start();
+                        listeningIcon.classList.remove('hidden'); // Show listening icon again
+                    } catch (e) {
+                        console.warn("Speech recognition already active or other error:", e);
+                    }
+                } else if (currentState === STATE_READY_TO_PLAY) {
+                    // If it was the final description, manage buttons
+                    updatePlayPauseButton('play');
+                    if (backgroundSynth) {
+                        backgroundSynth.stop();
+                    }
+                }
+            };
+            speechSynthesisUtterance.onerror = (event) => {
+                console.error('Speech synthesis error:', event);
+                speaking = false;
+                if (backgroundSynth) {
+                    backgroundSynth.stop();
+                }
+                showMessage("I couldn't generate the audio description. Please try again.");
+                updatePlayPauseButton('hidden');
+                startButton.disabled = false; // Re-enable start button
+            };
+        }
+
+        /**
+         * Makes the voice agent speak a message.
+         * @param {string} text - The text for the agent to speak.
+         */
+        function speak(text) {
+            speechSynthesisUtterance.text = text;
+            window.speechSynthesis.speak(speechSynthesisUtterance);
+        }
+
+        // --- Voice Agent Logic (State Machine) ---
+
+        /**
+         * Handles the user's spoken input based on the current state.
+         * @param {string} transcript - The transcribed text from user's speech.
+         */
+        function handleSpeechResult(transcript) {
+            switch (currentState) {
+                case STATE_WAITING_FOR_MOVIE:
+                    selectedMovie = transcript;
+                    showMessage(`You selected "${selectedMovie}". Now, what length of description would you like? Say "short", "medium", or "long".`, true);
+                    speak(`You selected "${selectedMovie}". Now, what length of description would you like? Say "short", "medium", or "long".`);
+                    currentState = STATE_WAITING_FOR_LENGTH;
+                    break;
+                case STATE_WAITING_FOR_LENGTH:
+                    let length = 'medium'; // Default
+                    if (transcript.includes('short')) {
+                        length = 'short';
+                    } else if (transcript.includes('medium')) {
+                        length = 'medium';
+                    } else if (transcript.includes('long')) {
+                        length = 'long';
+                    }
+                    showMessage(`Generating a "${length}" description for "${selectedMovie}"...`);
+                    speak(`Alright, generating a ${length} description for ${selectedMovie}. Please wait a moment.`);
+                    currentState = STATE_PROCESSING;
+                    generateSceneDescription(selectedMovie, length);
+                    break;
+                default:
+                    // Should not happen if state machine is managed correctly
+                    showMessage("Please click 'Start Voice Agent' to begin.");
+                    break;
+            }
+        }
+
+        /**
+         * Simulates generating a scene description using the Gemini API.
+         * @param {string} movieTitle - The title of the movie.
+         * @param {string} length - Desired length: 'short', 'medium', or 'long'.
+         */
+        async function generateSceneDescription(movieTitle, length) {
+            showLoading(true);
+            updatePlayPauseButton('hidden');
+
+            const prompt = `Generate a ${length} audio description for a dramatic scene from the movie "${movieTitle}". Focus on visual elements, character actions, and emotional tone as if describing it for someone who cannot see it. Do not use conversational language like "the scene begins". Just provide the description.`;
+
+            let chatHistory = [];
+            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+            const payload = { contents: chatHistory };
+
+            // API key is handled by the Canvas environment for gemini-2.0-flash
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                console.log("Gemini API Response:", result);
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const descriptionText = result.candidates[0].content.parts[0].text;
+                    showMessage(`Description Ready: "${descriptionText.substring(0, 100)}..."`);
+                    speakDescription(descriptionText);
+                    currentState = STATE_READY_TO_PLAY;
+                    updatePlayPauseButton('pause'); // Button starts as pause, meaning it's currently playing
+                } else {
+                    showMessage("I couldn't generate a description for that movie. Please try another one.");
+                    speak("I couldn't generate a description for that movie. Please try another one.");
+                    currentState = STATE_IDLE; // Reset to allow new movie selection
+                }
+            } catch (error) {
+                console.error('Error calling Gemini API:', error);
+                showMessage("There was an error generating the description. Please check your network and try again.");
+                speak("I'm sorry, I encountered an error. Please try again.");
+                currentState = STATE_IDLE; // Reset
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        /**
+         * Plays the generated description with a simple background sound.
+         * @param {string} descriptionText - The text to speak.
+         */
+        function speakDescription(descriptionText) {
+            // Initialize Tone.js synth for a subtle background drone
+            if (!backgroundSynth) {
+                backgroundSynth = new Tone.Synth().toDestination();
+                backgroundSynth.oscillator.type = "sine";
+                backgroundSynth.envelope.attack = 0.5;
+                backgroundSynth.envelope.decay = 0.5;
+                backgroundSynth.envelope.sustain = 0.8;
+                backgroundSynth.envelope.release = 1;
+            }
+
+            // Start a low drone sound
+            backgroundSynth.triggerAttackRelease("C2", "8n");
+
+            speechSynthesisUtterance.text = descriptionText;
+            window.speechSynthesis.speak(speechSynthesisUtterance);
+
+            // This ensures the background sound stops when speech ends
+            speechSynthesisUtterance.onend = () => {
+                speaking = false;
+                if (backgroundSynth) {
+                    backgroundSynth.stop();
+                }
+                updatePlayPauseButton('play'); // Once description is done, button shows 'Play'
+            };
+             speechSynthesisUtterance.onpause = () => {
+                speaking = false;
+                if (backgroundSynth) {
+                    backgroundSynth.stop();
+                }
+                updatePlayPauseButton('play');
+            };
+            speechSynthesisUtterance.onresume = () => {
+                speaking = true;
+                if (backgroundSynth) {
+                    backgroundSynth.triggerAttackRelease("C2", "8n");
+                }
+                updatePlayPauseButton('pause');
+            };
+        }
+
+        // --- Event Listeners ---
+
+        startButton.addEventListener('click', () => {
+            if (speechRecognition) {
+                try {
+                    speechRecognition.start();
+                    showMessage("What movie would you like an audio description for?", true);
+                    speak("What movie would you like an audio description for?");
+                    currentState = STATE_WAITING_FOR_MOVIE;
+                    startButton.disabled = true; // Disable until a response or error
+                } catch (e) {
+                    console.warn("Speech recognition already active or other error:", e);
+                    showMessage("Please wait a moment, or click the button again if nothing happens.");
+                }
+            } else {
+                showMessage("Speech recognition is not initialized. Please refresh the page if this persists.");
+            }
+        });
+
+        playPauseButton.addEventListener('click', () => {
+            if (window.speechSynthesis.speaking) {
+                if (speaking) { // If currently speaking, pause
+                    window.speechSynthesis.pause();
+                    if (backgroundSynth) backgroundSynth.stop();
+                    updatePlayPauseButton('play');
+                } else { // If paused, resume
+                    window.speechSynthesis.resume();
+                    if (backgroundSynth) backgroundSynth.triggerAttackRelease("C2", "8n");
+                    updatePlayPauseButton('pause');
+                }
+            } else if (currentState === STATE_READY_TO_PLAY && speechSynthesisUtterance && speechSynthesisUtterance.text) {
+                // If not speaking but ready to play a generated description again
+                speakDescription(speechSynthesisUtterance.text);
+                updatePlayPauseButton('pause');
+            }
+        });
+
+        // --- Initial Setup ---
+        window.onload = () => {
+            initializeFirebase(); // Initialize Firebase first
+            initSpeechRecognition(); // Then initialize speech recognition
+            showMessage("Click 'Start Voice Agent' to begin.");
+        };
+
+        // Ensure speech synthesis is stopped if user navigates away or refreshes
+        window.addEventListener('beforeunload', () => {
+            if (window.speechSynthesis.speaking) {
+                window.speechSynthesis.cancel();
+            }
+            if (backgroundSynth) {
+                backgroundSynth.dispose();
+            }
+        });
+
+    </script>
+</body>
+</html>
