@@ -478,6 +478,32 @@
                     result.candidates[0].content.parts.length > 0) {
                     const descriptionText = result.candidates[0].content.parts[0].text;
                     const displayInput = type === 'youtube' ? 'YouTube video' : input;
+
+                    // Store the description in Django backend
+                    try {
+                        const djangoResponse = await fetch('http://localhost:8000/api/descriptions/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                input_text: input,
+                                input_type: type,
+                                description_length: length,
+                                description_text: descriptionText,
+                                user_id: userId
+                            })
+                        });
+
+                        if (!djangoResponse.ok) {
+                            console.error('Failed to store description in Django:', await djangoResponse.text());
+                        } else {
+                            console.log('Description stored successfully in Django');
+                        }
+                    } catch (error) {
+                        console.error('Error storing description in Django:', error);
+                    }
+
                     showMessage(`Description Ready for "${displayInput}": "${descriptionText.substring(0, 100)}..."`);
                     speakDescription(descriptionText);
                     currentState = STATE_READY_TO_PLAY;
