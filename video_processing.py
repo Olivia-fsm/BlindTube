@@ -14,13 +14,13 @@ class VideoProcessor:
         genai.configure(api_key=self.api_key)
         self.model = genai.GenerativeModel('gemini-2.0-flash')
         
-    def extract_frames(self, video_path: str, frame_interval: int = 25) -> List[str]:
+    def extract_frames(self, video_path: str, frame_interval: int = 5) -> List[str]:
         """
         Extract frames from a video file and convert them to base64.
         
         Args:
             video_path: Path to the video file
-            frame_interval: Interval between frames to extract (default: 25)
+            frame_interval: Interval between frames to extract (default: 5)
             
         Returns:
             List of base64 encoded frames
@@ -63,7 +63,7 @@ class VideoProcessor:
             })
         
         # Create the prompt
-        prompt = "Generate a compelling description that I can upload along with this video. Focus on the characters, their actions, and the overall story being told."
+        prompt = "These are frames from a video that I want to upload. Generate only one compelling description that I can upload along with the video. Description should describe every detail in the video. This will be narrated for people who can not see as a story, so it should be very interesting and engaging. This should be like a book."
         
         # Generate content using Gemini
         response = self.model.generate_content(
@@ -79,41 +79,6 @@ class VideoProcessor:
                 HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
                 HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
                 HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-            }
-        )
-        
-        return response.text
-    
-    def analyze_scene(self, frames: List[str]) -> str:
-        """
-        Analyze the scene details and action sequences in the video.
-        
-        Args:
-            frames: List of base64 encoded frames
-            
-        Returns:
-            Scene analysis text
-        """
-        image_parts = []
-        for frame in frames:
-            image_parts.append({
-                "mime_type": "image/jpeg",
-                "data": frame
-            })
-        
-        prompt = """Analyze this scene from Tom and Jerry. Please describe:
-        1. What are the characters doing?
-        2. What is the setting?
-        3. Any notable gags or comedic moments?
-        4. The overall mood of the scene"""
-        
-        response = self.model.generate_content(
-            contents=[prompt] + image_parts,
-            generation_config={
-                "temperature": 0.7,
-                "top_p": 1,
-                "top_k": 32,
-                "max_output_tokens": 500,
             }
         )
         
@@ -135,7 +100,7 @@ def main():
     
     # Extract frames
     print("Extracting frames...")
-    frames = processor.extract_frames(video_path)
+    frames = processor.extract_frames(video_path, 30)
     print(f"Extracted {len(frames)} frames")
     
     # Generate description
@@ -144,23 +109,14 @@ def main():
     print("\nDescription:")
     print(description)
     
-    # Analyze scene
-    print("\nAnalyzing scene...")
-    analysis = processor.analyze_scene(frames)
-    print("\nScene Analysis:")
-    print(analysis)
-    
     # Save the results to a text file
     output_dir = os.path.dirname(video_path)
-    output_path = os.path.join(output_dir, "video_analysis.txt")
+    output_path = os.path.join(output_dir, "video_description.txt")
     with open(output_path, "w") as f:
         f.write("Video Description:\n")
         f.write("================\n")
         f.write(description)
-        f.write("\n\nScene Analysis:\n")
-        f.write("================\n")
-        f.write(analysis)
-    print(f"\nAnalysis saved to {output_path}")
+    print(f"\nDescription saved to {output_path}")
 
 if __name__ == "__main__":
     main()
