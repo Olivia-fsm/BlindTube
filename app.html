@@ -168,15 +168,17 @@
         let selectedInput = ''; // Can be movie title or YouTube URL
         let inputType = ''; // 'movie' or 'youtube'
         let speechRecognition;
-        let speechSynthesisUtterance;
-        let speaking = false; // Track if the agent is currently speaking
         let backgroundSynth; // Tone.js synth for background sound
+
+        // Use a queue for speech utterances to handle multiple segments
+        let speechQueue = [];
+        let isSpeakingQueued = false; // Flag to indicate if the queue is actively speaking
 
         // --- Firebase Initialization ---
         // Global variables provided by the Canvas environment
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? initialAuthToken : null; // Fixed: Use initialAuthToken directly
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null; // Fixed self-referential error
 
         /**
          * Initializes Firebase and authenticates the user.
@@ -297,7 +299,7 @@
         // --- Web Speech API (Speech Recognition & Synthesis) ---
 
         /**
-         * Initializes SpeechRecognition and SpeechSynthesis.
+         * Initializes SpeechRecognition. SpeechSynthesisUtterances will be created dynamically.
          */
         function initSpeechRecognition() {
             if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -311,12 +313,6 @@
             speechRecognition.continuous = false; // Only get one result per recognition start
             speechRecognition.interimResults = false;
             speechRecognition.lang = 'en-US';
-
-            speechSynthesisUtterance = new SpeechSynthesisUtterance();
-            speechSynthesisUtterance.lang = 'en-US';
-            speechSynthesisUtterance.volume = 1;
-            speechSynthesisUtterance.rate = 1;
-            speechSynthesisUtterance.pitch = 1;
 
             // Event Listeners for Speech Recognition
             speechRecognition.onresult = (event) => {
@@ -344,18 +340,34 @@
             };
 
             speechRecognition.onend = () => {
-                if (!speaking && currentState !== STATE_PROCESSING && currentState !== STATE_READY_TO_PLAY) {
+                // Only hide if not speaking and not processing
+                if (!isSpeakingQueued && currentState !== STATE_PROCESSING && currentState !== STATE_READY_TO_PLAY) {
                     listeningIcon.classList.add('hidden');
                 }
             };
+        }
 
-            // Event Listener for Speech Synthesis (Agent's voice)
-            speechSynthesisUtterance.onstart = () => {
-                speaking = true;
+        /**
+         * Makes the voice agent speak a message. This is for agent's direct prompts, not the drama description.
+         * @param {string} text - The text for the agent to speak.
+         */
+        function speakAgentMessage(text) {
+            // Cancel any ongoing speech and clear queue before agent speaks
+            window.speechSynthesis.cancel();
+            speechQueue = [];
+            isSpeakingQueued = false;
+            if (backgroundSynth) backgroundSynth.stop(); // Stop background sound for agent speech
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            utterance.volume = 1;
+            utterance.rate = 1;
+            utterance.pitch = 1;
+
+            utterance.onstart = () => {
                 listeningIcon.classList.add('hidden'); // Hide listening icon when agent is speaking
             };
-            speechSynthesisUtterance.onend = () => {
-                speaking = false;
+            utterance.onend = () => {
                 if (currentState === STATE_WAITING_FOR_MOVIE || currentState === STATE_WAITING_FOR_LENGTH) {
                     // If agent finished speaking and waiting for user input, restart listening
                     try {
@@ -364,34 +376,40 @@
                     } catch (e) {
                         console.warn("Speech recognition already active or other error:", e);
                     }
-                } else if (currentState === STATE_READY_TO_PLAY) {
-                    // If it was the final description, manage buttons
-                    updatePlayPauseButton('play');
-                    if (backgroundSynth) {
-                        backgroundSynth.stop();
-                    }
                 }
             };
-            speechSynthesisUtterance.onerror = (event) => {
-                console.error('Speech synthesis error:', event);
-                speaking = false;
-                if (backgroundSynth) {
-                    backgroundSynth.stop();
-                }
-                showMessage("I couldn't generate the audio description. Please try again.");
-                updatePlayPauseButton('hidden');
-                showLoading(false); // Re-enable all inputs/buttons
-                currentState = STATE_IDLE; // Reset state
+            utterance.onerror = (event) => {
+                console.error('Speech synthesis error for agent message:', event);
             };
+            window.speechSynthesis.speak(utterance);
         }
 
         /**
-         * Makes the voice agent speak a message.
-         * @param {string} text - The text for the agent to speak.
+         * Processes the speech queue for playing the radio drama.
          */
-        function speak(text) {
-            speechSynthesisUtterance.text = text;
-            window.speechSynthesis.speak(speechSynthesisUtterance);
+        function processSpeechQueue() {
+            if (speechQueue.length > 0 && !window.speechSynthesis.speaking) {
+                const utterance = speechQueue.shift();
+                window.speechSynthesis.speak(utterance);
+                isSpeakingQueued = true;
+                utterance.onend = () => {
+                    // Slight pause between segments
+                    setTimeout(() => {
+                        processSpeechQueue();
+                    }, 500); // 500ms pause
+                };
+                utterance.onerror = (event) => {
+                    console.error('Speech synthesis error in queue:', event);
+                    processSpeechQueue(); // Try next segment
+                };
+            } else if (speechQueue.length === 0 && isSpeakingQueued) {
+                // All queued speeches finished
+                isSpeakingQueued = false;
+                if (backgroundSynth) {
+                    backgroundSynth.stop();
+                }
+                updatePlayPauseButton('play'); // Once description is done, button shows 'Play'
+            }
         }
 
         // --- Voice Agent Logic (State Machine) ---
@@ -407,7 +425,7 @@
                     inputType = getYouTubeVideoId(selectedInput) ? 'youtube' : 'movie';
                     const promptText = inputType === 'youtube' ? `You provided a YouTube link.` : `You selected "${selectedInput}".`;
                     showMessage(`${promptText} Now, what length of description would you like? Say "short", "medium", or "long".`, true);
-                    speak(`${promptText} Now, what length of description would you like? Say "short", "medium", or "long".`);
+                    speakAgentMessage(`${promptText} Now, what length of description would you like? Say "short", "medium", or "long".`);
                     currentState = STATE_WAITING_FOR_LENGTH;
                     break;
                 case STATE_WAITING_FOR_LENGTH:
@@ -420,22 +438,21 @@
                         length = 'long';
                     }
                     const processingMsg = inputType === 'youtube' ?
-                        `Generating a simulated "${length}" description for the YouTube video...` :
-                        `Generating a "${length}" description for "${selectedInput}"...`;
+                        `Generating a simulated "${length}" radio drama for the YouTube video...` :
+                        `Generating a "${length}" radio drama for "${selectedInput}"...`;
                     showMessage(processingMsg);
-                    speak(`Alright, generating a ${length} description. Please wait a moment.`);
+                    speakAgentMessage(`Alright, generating a ${length} radio drama. Please wait a moment.`);
                     currentState = STATE_PROCESSING;
                     generateSceneDescription(selectedInput, length, inputType);
                     break;
                 default:
-                    // Should not happen if state machine is managed correctly
                     showMessage("Please click 'Start Voice Agent' or enter a movie/YouTube link to begin.");
                     break;
             }
         }
 
         /**
-         * Simulates generating a scene description using the Gemini API.
+         * Simulates generating a scene description (radio drama style) using the Gemini API.
          * @param {string} input - The movie title or YouTube URL.
          * @param {string} length - Desired length: 'short', 'medium', or 'long'.
          * @param {string} type - 'movie' or 'youtube'.
@@ -443,24 +460,31 @@
         async function generateSceneDescription(input, length, type) {
             showLoading(true);
             updatePlayPauseButton('hidden');
+            window.speechSynthesis.cancel(); // Cancel any ongoing agent speech
+            speechQueue = []; // Clear previous speech queue
 
             let prompt;
+            const lengthWords = {
+                'short': 'a brief (around 50 words)',
+                'medium': 'a medium (around 100-150 words)',
+                'long': 'a detailed (around 200-250 words)'
+            };
+
             if (type === 'youtube') {
                 const videoId = getYouTubeVideoId(input);
-                prompt = `Generate a ${length} audio description for a dramatic scene from a hypothetical video. This is a simulated description based on the concept of a YouTube video. Focus on visual elements, character actions, and emotional tone. Do not use conversational language like "the scene begins". Just provide the description.`;
+                prompt = `Generate ${lengthWords[length]} audio description in a radio drama script format for a dramatic scene from a hypothetical YouTube video. This is a simulated description. Use labels like [NARRATOR], [CHARACTER A], [CHARACTER B] before their respective lines. Focus on visual elements, character actions, and emotional tone. Do NOT include sound effect descriptions that cannot be spoken, like "[SOUND OF RAIN]". Only provide spoken content.`;
                 if (videoId) {
-                    prompt = `Generate a ${length} audio description for a dramatic scene from a hypothetical YouTube video with ID ${videoId}. This is a simulated description. Focus on visual elements, character actions, and emotional tone. Do not use conversational language like "the scene begins". Just provide the description.`;
+                    prompt = `Generate ${lengthWords[length]} audio description in a radio drama script format for a dramatic scene from a hypothetical YouTube video with ID ${videoId}. This is a simulated description. Use labels like [NARRATOR], [CHARACTER A], [CHARACTER B] before their respective lines. Focus on visual elements, character actions, and emotional tone. Do NOT include sound effect descriptions that cannot be spoken, like "[SOUND OF RAIN]". Only provide spoken content.`;
                 }
             } else {
-                prompt = `Generate a ${length} audio description for a dramatic scene from the movie "${input}". Focus on visual elements, character actions, and emotional tone as if describing it for someone who cannot see it. Do not use conversational language like "the scene begins". Just provide the description.`;
+                prompt = `Generate ${lengthWords[length]} audio description in a radio drama script format for a dramatic scene from the movie "${input}". Use labels like [NARRATOR], [CHARACTER A], [CHARACTER B] before their respective lines. Focus on visual elements, character actions, and emotional tone as if describing it for someone who cannot see it. Do NOT include sound effect descriptions that cannot be spoken, like "[SOUND OF RAIN]". Only provide spoken content.`;
             }
 
             let chatHistory = [];
             chatHistory.push({ role: "user", parts: [{ text: prompt }] });
             const payload = { contents: chatHistory };
 
-            // API key is handled by the Canvas environment for gemini-2.0-flash
-            const apiKey = "AIzaSyD42lEWzExGrRsqLk3M4F90vKkOZLtD7LI";
+            const apiKey = "AIzaSyD42lEWzExGrRsqLk3M4F90vKkOZLtD7LI"; // API key is handled by the Canvas environment for gemini-2.0-flash
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
             try {
@@ -509,14 +533,14 @@
                     currentState = STATE_READY_TO_PLAY;
                     updatePlayPauseButton('pause'); // Button starts as pause, meaning it's currently playing
                 } else {
-                    showMessage("I couldn't generate a description for that. Please try another input.");
-                    speak("I couldn't generate a description. Please try another one.");
+                    showMessage("I couldn't generate a radio drama for that. Please try another input.");
+                    speakAgentMessage("I couldn't generate a radio drama. Please try another one.");
                     currentState = STATE_IDLE; // Reset to allow new input
                 }
             } catch (error) {
                 console.error('Error calling Gemini API:', error);
                 showMessage("There was an error generating the description. Please check your network and try again.");
-                speak("I'm sorry, I encountered an error. Please try again.");
+                speakAgentMessage("I'm sorry, I encountered an error. Please try again.");
                 currentState = STATE_IDLE; // Reset
             } finally {
                 showLoading(false);
@@ -524,10 +548,15 @@
         }
 
         /**
-         * Plays the generated description with a simple background sound.
-         * @param {string} descriptionText - The text to speak.
+         * Parses the radio drama script and adds utterances to the queue.
+         * @param {string} scriptText - The radio drama script from the LLM.
          */
-        function speakDescription(descriptionText) {
+        function prepareAndSpeakDrama(scriptText) {
+            // Cancel any current speech and clear queue
+            window.speechSynthesis.cancel();
+            speechQueue = [];
+            isSpeakingQueued = false;
+
             // Initialize Tone.js synth for a subtle background drone
             if (!backgroundSynth) {
                 backgroundSynth = new Tone.Synth().toDestination();
@@ -536,36 +565,53 @@
                 backgroundSynth.envelope.decay = 0.5;
                 backgroundSynth.envelope.sustain = 0.8;
                 backgroundSynth.envelope.release = 1;
+                // Add a low-pass filter to make it less intrusive
+                const filter = new Tone.Filter(400, "lowpass").toDestination();
+                backgroundSynth.connect(filter);
             }
 
-            // Start a low drone sound
-            backgroundSynth.triggerAttackRelease("C2", "8n");
+            // Split the script by lines to process each segment
+            const lines = scriptText.split('\n').filter(line => line.trim() !== '');
 
-            speechSynthesisUtterance.text = descriptionText;
-            window.speechSynthesis.speak(speechSynthesisUtterance);
+            lines.forEach(line => {
+                let textToSpeak = line.trim();
+                let rate = 1; // Default rate
+                let pitch = 1; // Default pitch
 
-            // This ensures the background sound stops when speech ends
-            speechSynthesisUtterance.onend = () => {
-                speaking = false;
-                if (backgroundSynth) {
-                    backgroundSynth.stop();
+                if (textToSpeak.startsWith('[NARRATOR]')) {
+                    textToSpeak = textToSpeak.replace('[NARRATOR]', '').trim();
+                    rate = 0.95; // Slightly slower
+                    pitch = 0.9; // Slightly lower pitch for narrative
+                } else if (textToSpeak.startsWith('[CHARACTER A]')) {
+                    textToSpeak = textToSpeak.replace('[CHARACTER A]', '').trim();
+                    rate = 1.05; // Slightly faster
+                    pitch = 1.1; // Slightly higher pitch for Character A
+                } else if (textToSpeak.startsWith('[CHARACTER B]')) {
+                    textToSpeak = textToSpeak.replace('[CHARACTER B]', '').trim();
+                    rate = 1; // Normal rate
+                    pitch = 0.95; // Slightly lower pitch for Character B
                 }
-                updatePlayPauseButton('play'); // Once description is done, button shows 'Play'
-            };
-             speechSynthesisUtterance.onpause = () => {
-                speaking = false;
-                if (backgroundSynth) {
-                    backgroundSynth.stop();
+                // Add more character rules as needed
+
+                if (textToSpeak) {
+                    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+                    utterance.lang = 'en-US';
+                    utterance.volume = 1;
+                    utterance.rate = rate;
+                    utterance.pitch = pitch;
+                    speechQueue.push(utterance);
                 }
-                updatePlayPauseButton('play');
-            };
-            speechSynthesisUtterance.onresume = () => {
-                speaking = true;
-                if (backgroundSynth) {
-                    backgroundSynth.triggerAttackRelease("C2", "8n");
-                }
-                updatePlayPauseButton('pause');
-            };
+            });
+
+            // Start the background sound and begin processing the queue
+            if (speechQueue.length > 0) {
+                backgroundSynth.triggerAttackRelease("C2", "8n");
+                processSpeechQueue();
+            } else {
+                 showMessage("The generated radio drama was empty. Please try again.");
+                 updatePlayPauseButton('hidden');
+                 currentState = STATE_IDLE;
+            }
         }
 
         // --- Event Listeners ---
@@ -574,8 +620,8 @@
             if (speechRecognition) {
                 try {
                     speechRecognition.start();
-                    showMessage("What movie would you like an audio description for?", true);
-                    speak("What movie would you like an audio description for?");
+                    showMessage("What movie would you like a radio drama for?", true);
+                    speakAgentMessage("What movie would you like a radio drama for?");
                     currentState = STATE_WAITING_FOR_MOVIE;
                     startButton.disabled = true; // Disable voice button during voice interaction
                     submitTextButton.disabled = true; // Disable text input during voice interaction
@@ -599,11 +645,11 @@
             selectedInput = inputText;
             inputType = getYouTubeVideoId(selectedInput) ? 'youtube' : 'movie';
             const confirmationText = inputType === 'youtube' ?
-                `You entered a YouTube link. Now, what length of description would you like? Say "short", "medium", or "long".` :
-                `You entered "${selectedInput}". Now, what length of description would you like? Say "short", "medium", or "long".`;
+                `You entered a YouTube link. Now, what length of radio drama would you like? Say "short", "medium", or "long".` :
+                `You entered "${selectedInput}". Now, what length of radio drama would you like? Say "short", "medium", or "long".`;
 
             showMessage(confirmationText, true);
-            speak(confirmationText);
+            speakAgentMessage(confirmationText);
             currentState = STATE_WAITING_FOR_LENGTH;
             startButton.disabled = true; // Disable voice button when using text input
             submitTextButton.disabled = true; // Disable text button while waiting for voice input for length
@@ -622,19 +668,28 @@
 
         playPauseButton.addEventListener('click', () => {
             if (window.speechSynthesis.speaking) {
-                if (speaking) { // If currently speaking, pause
+                if (isSpeakingQueued && !window.speechSynthesis.paused) { // If currently speaking a queued item and not paused
                     window.speechSynthesis.pause();
                     if (backgroundSynth) backgroundSynth.stop();
                     updatePlayPauseButton('play');
-                } else { // If paused, resume
+                } else if (window.speechSynthesis.paused) { // If paused, resume
                     window.speechSynthesis.resume();
                     if (backgroundSynth) backgroundSynth.triggerAttackRelease("C2", "8n");
                     updatePlayPauseButton('pause');
+                } else { // Agent is speaking, or something unexpected, stop everything
+                    window.speechSynthesis.cancel();
+                    if (backgroundSynth) backgroundSynth.stop();
+                    speechQueue = [];
+                    isSpeakingQueued = false;
+                    updatePlayPauseButton('play');
                 }
-            } else if (currentState === STATE_READY_TO_PLAY && speechSynthesisUtterance && speechSynthesisUtterance.text) {
-                // If not speaking but ready to play a generated description again
-                speakDescription(speechSynthesisUtterance.text);
-                updatePlayPauseButton('pause');
+            } else if (currentState === STATE_READY_TO_PLAY && speechQueue.length === 0) {
+                // If nothing is speaking but we have a description ready (e.g., was played and finished)
+                // This means we need to re-prepare the drama from the last generated text.
+                // For simplicity, we'll just indicate it's ready to play the last one if available.
+                // To replay, the user would need to initiate a new request via voice or text input.
+                showMessage("Please initiate a new request to generate and play a new radio drama.");
+                updatePlayPauseButton('play'); // Ensure button is 'Play'
             }
         });
 
@@ -647,9 +702,7 @@
 
         // Ensure speech synthesis is stopped if user navigates away or refreshes
         window.addEventListener('beforeunload', () => {
-            if (window.speechSynthesis.speaking) {
-                window.speechSynthesis.cancel();
-            }
+            window.speechSynthesis.cancel();
             if (backgroundSynth) {
                 backgroundSynth.dispose();
             }
