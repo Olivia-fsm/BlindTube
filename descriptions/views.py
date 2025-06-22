@@ -44,6 +44,20 @@ class AudioDescriptionViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
         return Response({'error': 'user_id parameter is required'}, status=400)
 
+    @action(detail=True, methods=['delete'])
+    def delete_description(self, request, pk=None):
+        try:
+            description = self.get_object()
+            # Delete associated audio file if it exists
+            if description.audio_url:
+                audio_path = os.path.join(settings.MEDIA_ROOT, description.audio_url)
+                if os.path.exists(audio_path):
+                    os.remove(audio_path)
+            description.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 def is_valid_video_file(file):
     """Check if the file is a valid video file."""
     valid_types = ['video/mp4', 'video/avi', 'video/quicktime', 'video/x-msvideo']
