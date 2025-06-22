@@ -253,6 +253,10 @@ def process_youtube(request):
                 # First, try to extract video information
                 info = ydl.extract_info(youtube_url, download=False)
                 
+                # Get video title
+                video_title = info.get('title', 'Untitled Video')
+                logger.debug(f"Video title: {video_title}")
+                
                 # Log available formats
                 logger.debug("Available formats:")
                 formats = sorted(info['formats'], key=lambda x: (x.get('width', 0) or 0) * (x.get('height', 0) or 0))
@@ -308,9 +312,9 @@ def process_youtube(request):
                 'status': 'error'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # Store the description in the database
+        # Store the description in the database using the video title
         description = AudioDescription.objects.create(
-            input_text=youtube_url,
+            input_text=video_title,  # Use video title instead of URL
             input_type='youtube',
             description_text=description_text,
             description_length='medium',
@@ -319,6 +323,7 @@ def process_youtube(request):
 
         return Response({
             'status': 'success',
+            'title': video_title,  # Include title in response
             'description': description_text,
             'description_id': description.id,
             'video_path': os.path.relpath(output_path, settings.MEDIA_ROOT),
