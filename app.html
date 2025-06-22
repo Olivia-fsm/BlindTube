@@ -3,13 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Movie Audio Description App</title>
+    <title>Movie Description App</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Inter Font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <!-- Tone.js for background sound -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -48,41 +46,6 @@
             line-height: 1.6;
             word-wrap: break-word;
         }
-        .voice-icon {
-            animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% {
-                transform: scale(1);
-                opacity: 1;
-            }
-            50% {
-                transform: scale(1.05);
-                opacity: 0.8;
-            }
-        }
-        .play-pause-button {
-            background-color: #4CAF50; /* Green */
-            color: white;
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 1.125rem;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .play-pause-button:hover {
-            background-color: #45a049;
-        }
-        .play-pause-button:disabled {
-            background-color: #cbd5e1; /* slate-300 */
-            cursor: not-allowed;
-            box-shadow: none;
-        }
         .loading-spinner {
             border: 4px solid #f3f3f3;
             border-top: 4px solid #3b82f6; /* blue-500 */
@@ -96,36 +59,55 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .file-upload {
+            display: none;
+        }
+        .file-upload-label {
+            cursor: pointer;
+            padding: 12px 24px;
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.3s;
+        }
+        .file-upload-label:hover {
+            background-color: #45a049;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1 class="text-3xl font-bold text-gray-800">Movie Audio Description</h1>
-        <p class="text-gray-600">Interact with the voice agent or use text input.</p>
+        <h1 class="text-3xl font-bold text-gray-800">Video Description Generator</h1>
+        <p class="text-gray-600">Upload a video or provide a YouTube link to generate a description.</p>
 
         <div class="message-box" id="messageBox">
-            <svg id="listeningIcon" class="w-8 h-8 text-blue-500 hidden voice-icon" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path></svg>
-            <span id="messageText">Click "Start Voice Agent" or enter a movie/YouTube link below.</span>
+            <span id="messageText">Choose a video file or enter a YouTube link below.</span>
         </div>
 
-        <button id="startButton" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl shadow-md transition duration-300 ease-in-out flex items-center justify-center gap-2">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-            <span id="startButtonText">Start Voice Agent</span>
-        </button>
+        <div class="flex flex-col gap-4">
+            <!-- File Upload Section -->
+            <div class="flex flex-col items-center gap-2">
+                <input type="file" id="videoUpload" class="file-upload" accept="video/*">
+                <label for="videoUpload" class="file-upload-label">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    Upload Video
+                </label>
+                <span id="selectedFileName" class="text-sm text-gray-600"></span>
+            </div>
 
-        <div class="mt-4 flex flex-col sm:flex-row items-center gap-3">
-            <input type="text" id="textInput" placeholder="Enter movie title or YouTube link" class="flex-grow w-full sm:w-auto p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700">
-            <button id="submitTextButton" class="bg-gray-700 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-xl shadow-md transition duration-300 ease-in-out w-full sm:w-auto">
-                Get Description
-            </button>
+            <!-- YouTube Link Section -->
+            <div class="flex flex-col sm:flex-row items-center gap-3">
+                <input type="text" id="youtubeInput" placeholder="Or enter YouTube link" class="flex-grow w-full sm:w-auto p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700">
+                <button id="submitYoutubeButton" class="bg-gray-700 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-xl shadow-md transition duration-300 ease-in-out w-full sm:w-auto">
+                    Process YouTube
+                </button>
+            </div>
         </div>
-
-
-        <button id="playPauseButton" class="play-pause-button hidden" disabled>
-            <svg id="playIcon" class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
-            <svg id="pauseIcon" class="w-6 h-6 hidden" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
-            <span id="playPauseButtonText">Play Description</span>
-        </button>
 
         <div id="loadingSpinner" class="hidden loading-spinner"></div>
     </div>
@@ -139,15 +121,10 @@
         // DOM Elements
         const messageBox = document.getElementById('messageBox');
         const messageText = document.getElementById('messageText');
-        const listeningIcon = document.getElementById('listeningIcon');
-        const startButton = document.getElementById('startButton');
-        const startButtonText = document.getElementById('startButtonText');
-        const textInput = document.getElementById('textInput');
-        const submitTextButton = document.getElementById('submitTextButton');
-        const playPauseButton = document.getElementById('playPauseButton');
-        const playIcon = document.getElementById('playIcon');
-        const pauseIcon = document.getElementById('pauseIcon');
-        const playPauseButtonText = document.getElementById('playPauseButtonText');
+        const videoUpload = document.getElementById('videoUpload');
+        const selectedFileName = document.getElementById('selectedFileName');
+        const youtubeInput = document.getElementById('youtubeInput');
+        const submitYoutubeButton = document.getElementById('submitYoutubeButton');
         const loadingSpinner = document.getElementById('loadingSpinner');
 
         // Firebase variables
@@ -157,28 +134,11 @@
         let userId = 'anonymous'; // Default to anonymous
         let isAuthReady = false;
 
-        // Voice Agent State
-        const STATE_IDLE = 'IDLE';
-        const STATE_WAITING_FOR_MOVIE = 'WAITING_FOR_MOVIE';
-        const STATE_WAITING_FOR_LENGTH = 'WAITING_FOR_LENGTH';
-        const STATE_PROCESSING = 'PROCESSING';
-        const STATE_READY_TO_PLAY = 'READY_TO_PLAY';
-
-        let currentState = STATE_IDLE;
-        let selectedInput = ''; // Can be movie title or YouTube URL
-        let inputType = ''; // 'movie' or 'youtube'
-        let speechRecognition;
-        let backgroundSynth; // Tone.js synth for background sound
-
-        // Use a queue for speech utterances to handle multiple segments
-        let speechQueue = [];
-        let isSpeakingQueued = false; // Flag to indicate if the queue is actively speaking
-
         // --- Firebase Initialization ---
         // Global variables provided by the Canvas environment
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null; // Fixed self-referential error
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         /**
          * Initializes Firebase and authenticates the user.
@@ -209,8 +169,6 @@
                             console.log('No user signed in. Using a random UUID:', userId);
                         }
                         isAuthReady = true;
-                        // For multi-user apps, mandatory to show user ID on UI.
-                        // messageText.textContent = `User ID: ${userId}. ${messageText.textContent}`;
                     });
 
                 } catch (error) {
@@ -228,15 +186,9 @@
         /**
          * Displays a message in the message box.
          * @param {string} msg - The message to display.
-         * @param {boolean} showListeningIcon - Whether to show the listening icon.
          */
-        function showMessage(msg, showListeningIcon = false) {
+        function showMessage(msg) {
             messageText.textContent = msg;
-            if (showListeningIcon) {
-                listeningIcon.classList.remove('hidden');
-            } else {
-                listeningIcon.classList.add('hidden');
-            }
         }
 
         /**
@@ -246,42 +198,16 @@
         function showLoading(show) {
             if (show) {
                 loadingSpinner.classList.remove('hidden');
-                startButton.disabled = true;
-                submitTextButton.disabled = true;
-                textInput.disabled = true;
-                startButtonText.textContent = 'Processing...';
-                submitTextButton.textContent = 'Processing...';
-                playPauseButton.classList.add('hidden');
+                videoUpload.disabled = true;
+                submitYoutubeButton.disabled = true;
+                youtubeInput.disabled = true;
+                submitYoutubeButton.textContent = 'Processing...';
             } else {
                 loadingSpinner.classList.add('hidden');
-                startButton.disabled = false;
-                submitTextButton.disabled = false;
-                textInput.disabled = false;
-                startButtonText.textContent = 'Start Voice Agent';
-                submitTextButton.textContent = 'Get Description';
-            }
-        }
-
-        /**
-         * Updates the play/pause button state.
-         * @param {string} state - 'play' or 'pause' or 'hidden'.
-         */
-        function updatePlayPauseButton(state) {
-            if (state === 'hidden') {
-                playPauseButton.classList.add('hidden');
-                playPauseButton.disabled = true;
-            } else {
-                playPauseButton.classList.remove('hidden');
-                playPauseButton.disabled = false;
-                if (state === 'play') {
-                    playIcon.classList.remove('hidden');
-                    pauseIcon.classList.add('hidden');
-                    playPauseButtonText.textContent = 'Play Description';
-                } else if (state === 'pause') {
-                    playIcon.classList.add('hidden');
-                    pauseIcon.classList.remove('hidden');
-                    playPauseButtonText.textContent = 'Pause Description';
-                }
+                videoUpload.disabled = false;
+                submitYoutubeButton.disabled = false;
+                youtubeInput.disabled = false;
+                submitYoutubeButton.textContent = 'Process YouTube';
             }
         }
 
@@ -296,418 +222,82 @@
             return match ? match[1] : null;
         }
 
-        // --- Web Speech API (Speech Recognition & Synthesis) ---
+        // --- Event Listeners ---
 
-        /**
-         * Initializes SpeechRecognition. SpeechSynthesisUtterances will be created dynamically.
-         */
-        function initSpeechRecognition() {
-            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-                showMessage("Speech Recognition not supported in this browser. Please use Chrome or Edge.");
-                startButton.disabled = true;
+        submitYoutubeButton.addEventListener('click', async () => {
+            const youtubeUrl = youtubeInput.value.trim();
+            if (!youtubeUrl) {
+                messageText.textContent = "Please enter a YouTube URL";
                 return;
             }
 
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            speechRecognition = new SpeechRecognition();
-            speechRecognition.continuous = false; // Only get one result per recognition start
-            speechRecognition.interimResults = false;
-            speechRecognition.lang = 'en-US';
-
-            // Event Listeners for Speech Recognition
-            speechRecognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript.trim().toLowerCase();
-                console.log('User said:', transcript);
-                handleSpeechResult(transcript);
-            };
-
-            speechRecognition.onerror = (event) => {
-                console.error('Speech recognition error:', event.error);
-                if (event.error === 'no-speech') {
-                    showMessage("Didn't hear anything. Please try again.");
-                } else if (event.error === 'not-allowed') {
-                    showMessage("Microphone access denied. Please allow microphone access for this site in your browser settings (e.g., click the camera/microphone icon in the address bar).");
-                    startButton.disabled = true;
-                } else {
-                    showMessage(`Speech recognition error: ${event.error}. Please try again.`);
-                }
-                listeningIcon.classList.add('hidden'); // Hide icon on error
-                // Only re-enable start button if not processing from text input
-                if (currentState !== STATE_PROCESSING) {
-                    startButton.disabled = false;
-                    startButtonText.textContent = 'Start Voice Agent';
-                }
-            };
-
-            speechRecognition.onend = () => {
-                // Only hide if not speaking and not processing
-                if (!isSpeakingQueued && currentState !== STATE_PROCESSING && currentState !== STATE_READY_TO_PLAY) {
-                    listeningIcon.classList.add('hidden');
-                }
-            };
-        }
-
-        /**
-         * Makes the voice agent speak a message. This is for agent's direct prompts, not the drama description.
-         * @param {string} text - The text for the agent to speak.
-         */
-        function speakAgentMessage(text) {
-            // Cancel any ongoing speech and clear queue before agent speaks
-            window.speechSynthesis.cancel();
-            speechQueue = [];
-            isSpeakingQueued = false;
-            if (backgroundSynth) backgroundSynth.stop(); // Stop background sound for agent speech
-
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'en-US';
-            utterance.volume = 1;
-            utterance.rate = 1;
-            utterance.pitch = 1;
-
-            utterance.onstart = () => {
-                listeningIcon.classList.add('hidden'); // Hide listening icon when agent is speaking
-            };
-            utterance.onend = () => {
-                if (currentState === STATE_WAITING_FOR_MOVIE || currentState === STATE_WAITING_FOR_LENGTH) {
-                    // If agent finished speaking and waiting for user input, restart listening
-                    try {
-                        speechRecognition.start();
-                        listeningIcon.classList.remove('hidden'); // Show listening icon again
-                    } catch (e) {
-                        console.warn("Speech recognition already active or other error:", e);
-                    }
-                }
-            };
-            utterance.onerror = (event) => {
-                console.error('Speech synthesis error for agent message:', event);
-            };
-            window.speechSynthesis.speak(utterance);
-        }
-
-        /**
-         * Processes the speech queue for playing the radio drama.
-         */
-        function processSpeechQueue() {
-            if (speechQueue.length > 0 && !window.speechSynthesis.speaking) {
-                const utterance = speechQueue.shift();
-                window.speechSynthesis.speak(utterance);
-                isSpeakingQueued = true;
-                utterance.onend = () => {
-                    // Slight pause between segments
-                    setTimeout(() => {
-                        processSpeechQueue();
-                    }, 500); // 500ms pause
-                };
-                utterance.onerror = (event) => {
-                    console.error('Speech synthesis error in queue:', event);
-                    processSpeechQueue(); // Try next segment
-                };
-            } else if (speechQueue.length === 0 && isSpeakingQueued) {
-                // All queued speeches finished
-                isSpeakingQueued = false;
-                if (backgroundSynth) {
-                    backgroundSynth.stop();
-                }
-                updatePlayPauseButton('play'); // Once description is done, button shows 'Play'
-            }
-        }
-
-        // --- Voice Agent Logic (State Machine) ---
-
-        /**
-         * Handles the user's spoken input based on the current state.
-         * @param {string} transcript - The transcribed text from user's speech.
-         */
-        function handleSpeechResult(transcript) {
-            switch (currentState) {
-                case STATE_WAITING_FOR_MOVIE:
-                    selectedInput = transcript;
-                    inputType = getYouTubeVideoId(selectedInput) ? 'youtube' : 'movie';
-                    const promptText = inputType === 'youtube' ? `You provided a YouTube link.` : `You selected "${selectedInput}".`;
-                    showMessage(`${promptText} Now, what length of description would you like? Say "short", "medium", or "long".`, true);
-                    speakAgentMessage(`${promptText} Now, what length of description would you like? Say "short", "medium", or "long".`);
-                    currentState = STATE_WAITING_FOR_LENGTH;
-                    break;
-                case STATE_WAITING_FOR_LENGTH:
-                    let length = 'medium'; // Default
-                    if (transcript.includes('short')) {
-                        length = 'short';
-                    } else if (transcript.includes('medium')) {
-                        length = 'medium';
-                    } else if (transcript.includes('long')) {
-                        length = 'long';
-                    }
-                    const processingMsg = inputType === 'youtube' ?
-                        `Generating a simulated "${length}" radio drama for the YouTube video...` :
-                        `Generating a "${length}" radio drama for "${selectedInput}"...`;
-                    showMessage(processingMsg);
-                    speakAgentMessage(`Alright, generating a ${length} radio drama. Please wait a moment.`);
-                    currentState = STATE_PROCESSING;
-                    generateSceneDescription(selectedInput, length, inputType);
-                    break;
-                default:
-                    showMessage("Please click 'Start Voice Agent' or enter a movie/YouTube link to begin.");
-                    break;
-            }
-        }
-
-        /**
-         * Simulates generating a scene description (radio drama style) using the Gemini API.
-         * @param {string} input - The movie title or YouTube URL.
-         * @param {string} length - Desired length: 'short', 'medium', or 'long'.
-         * @param {string} type - 'movie' or 'youtube'.
-         */
-        async function generateSceneDescription(input, length, type) {
             showLoading(true);
-            updatePlayPauseButton('hidden');
-            window.speechSynthesis.cancel(); // Cancel any ongoing agent speech
-            speechQueue = []; // Clear previous speech queue
-
-            let prompt;
-            const lengthWords = {
-                'short': 'a brief (around 50 words)',
-                'medium': 'a medium (around 100-150 words)',
-                'long': 'a detailed (around 200-250 words)'
-            };
-
-            if (type === 'youtube') {
-                const videoId = getYouTubeVideoId(input);
-                prompt = `Generate ${lengthWords[length]} audio description in a radio drama script format for a dramatic scene from a hypothetical YouTube video. This is a simulated description. Use labels like [NARRATOR], [CHARACTER A], [CHARACTER B] before their respective lines. Focus on visual elements, character actions, and emotional tone. Do NOT include sound effect descriptions that cannot be spoken, like "[SOUND OF RAIN]". Only provide spoken content.`;
-                if (videoId) {
-                    prompt = `Generate ${lengthWords[length]} audio description in a radio drama script format for a dramatic scene from a hypothetical YouTube video with ID ${videoId}. This is a simulated description. Use labels like [NARRATOR], [CHARACTER A], [CHARACTER B] before their respective lines. Focus on visual elements, character actions, and emotional tone. Do NOT include sound effect descriptions that cannot be spoken, like "[SOUND OF RAIN]". Only provide spoken content.`;
-                }
-            } else {
-                prompt = `Generate ${lengthWords[length]} audio description in a radio drama script format for a dramatic scene from the movie "${input}". Use labels like [NARRATOR], [CHARACTER A], [CHARACTER B] before their respective lines. Focus on visual elements, character actions, and emotional tone as if describing it for someone who cannot see it. Do NOT include sound effect descriptions that cannot be spoken, like "[SOUND OF RAIN]". Only provide spoken content.`;
-            }
-
-            let chatHistory = [];
-            chatHistory.push({ role: "user", parts: [{ text: prompt }] });
-            const payload = { contents: chatHistory };
-
-            const apiKey = "AIzaSyD42lEWzExGrRsqLk3M4F90vKkOZLtD7LI"; // API key is handled by the Canvas environment for gemini-2.0-flash
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            messageText.textContent = "Processing YouTube video...";
 
             try {
-                const response = await fetch(apiUrl, {
+                const response = await fetch('http://127.0.0.1:8000/api/process-youtube/', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        youtube_url: youtubeUrl,
+                        user_id: userId
+                    })
                 });
 
-                const result = await response.json();
-                console.log("Gemini API Response:", result);
-
-                if (result.candidates && result.candidates.length > 0 &&
-                    result.candidates[0].content && result.candidates[0].content.parts &&
-                    result.candidates[0].content.parts.length > 0) {
-                    const descriptionText = result.candidates[0].content.parts[0].text;
-                    const displayInput = type === 'youtube' ? 'YouTube video' : input;
-
-                    // Store the description in Django backend
-                    try {
-                        const djangoResponse = await fetch('http://localhost:8000/api/descriptions/', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                input_text: input,
-                                input_type: type,
-                                description_length: length,
-                                description_text: descriptionText,
-                                user_id: userId
-                            })
-                        });
-
-                        if (!djangoResponse.ok) {
-                            console.error('Failed to store description in Django:', await djangoResponse.text());
-                        } else {
-                            console.log('Description stored successfully in Django');
-                        }
-                    } catch (error) {
-                        console.error('Error storing description in Django:', error);
-                    }
-
-                    showMessage(`Description Ready for "${displayInput}": "${descriptionText.substring(0, 100)}..."`);
-                    speakDescription(descriptionText);
-                    currentState = STATE_READY_TO_PLAY;
-                    updatePlayPauseButton('pause'); // Button starts as pause, meaning it's currently playing
+                const data = await response.json();
+                if (response.ok) {
+                    messageText.textContent = data.description;
                 } else {
-                    showMessage("I couldn't generate a radio drama for that. Please try another input.");
-                    speakAgentMessage("I couldn't generate a radio drama. Please try another one.");
-                    currentState = STATE_IDLE; // Reset to allow new input
+                    throw new Error(data.error || 'Failed to process YouTube video');
                 }
             } catch (error) {
-                console.error('Error calling Gemini API:', error);
-                showMessage("There was an error generating the description. Please check your network and try again.");
-                speakAgentMessage("I'm sorry, I encountered an error. Please try again.");
-                currentState = STATE_IDLE; // Reset
+                messageText.textContent = `Error: ${error.message}`;
+                console.error('Error:', error);
             } finally {
                 showLoading(false);
             }
-        }
-
-        /**
-         * Parses the radio drama script and adds utterances to the queue.
-         * @param {string} scriptText - The radio drama script from the LLM.
-         */
-        function prepareAndSpeakDrama(scriptText) {
-            // Cancel any current speech and clear queue
-            window.speechSynthesis.cancel();
-            speechQueue = [];
-            isSpeakingQueued = false;
-
-            // Initialize Tone.js synth for a subtle background drone
-            if (!backgroundSynth) {
-                backgroundSynth = new Tone.Synth().toDestination();
-                backgroundSynth.oscillator.type = "sine";
-                backgroundSynth.envelope.attack = 0.5;
-                backgroundSynth.envelope.decay = 0.5;
-                backgroundSynth.envelope.sustain = 0.8;
-                backgroundSynth.envelope.release = 1;
-                // Add a low-pass filter to make it less intrusive
-                const filter = new Tone.Filter(400, "lowpass").toDestination();
-                backgroundSynth.connect(filter);
-            }
-
-            // Split the script by lines to process each segment
-            const lines = scriptText.split('\n').filter(line => line.trim() !== '');
-
-            lines.forEach(line => {
-                let textToSpeak = line.trim();
-                let rate = 1; // Default rate
-                let pitch = 1; // Default pitch
-
-                if (textToSpeak.startsWith('[NARRATOR]')) {
-                    textToSpeak = textToSpeak.replace('[NARRATOR]', '').trim();
-                    rate = 0.95; // Slightly slower
-                    pitch = 0.9; // Slightly lower pitch for narrative
-                } else if (textToSpeak.startsWith('[CHARACTER A]')) {
-                    textToSpeak = textToSpeak.replace('[CHARACTER A]', '').trim();
-                    rate = 1.05; // Slightly faster
-                    pitch = 1.1; // Slightly higher pitch for Character A
-                } else if (textToSpeak.startsWith('[CHARACTER B]')) {
-                    textToSpeak = textToSpeak.replace('[CHARACTER B]', '').trim();
-                    rate = 1; // Normal rate
-                    pitch = 0.95; // Slightly lower pitch for Character B
-                }
-                // Add more character rules as needed
-
-                if (textToSpeak) {
-                    const utterance = new SpeechSynthesisUtterance(textToSpeak);
-                    utterance.lang = 'en-US';
-                    utterance.volume = 1;
-                    utterance.rate = rate;
-                    utterance.pitch = pitch;
-                    speechQueue.push(utterance);
-                }
-            });
-
-            // Start the background sound and begin processing the queue
-            if (speechQueue.length > 0) {
-                backgroundSynth.triggerAttackRelease("C2", "8n");
-                processSpeechQueue();
-            } else {
-                 showMessage("The generated radio drama was empty. Please try again.");
-                 updatePlayPauseButton('hidden');
-                 currentState = STATE_IDLE;
-            }
-        }
-
-        // --- Event Listeners ---
-
-        startButton.addEventListener('click', () => {
-            if (speechRecognition) {
-                try {
-                    speechRecognition.start();
-                    showMessage("What movie would you like a radio drama for?", true);
-                    speakAgentMessage("What movie would you like a radio drama for?");
-                    currentState = STATE_WAITING_FOR_MOVIE;
-                    startButton.disabled = true; // Disable voice button during voice interaction
-                    submitTextButton.disabled = true; // Disable text input during voice interaction
-                    textInput.disabled = true;
-                } catch (e) {
-                    console.warn("Speech recognition already active or other error:", e);
-                    showMessage("Please wait a moment, or click the button again if nothing happens.");
-                }
-            } else {
-                showMessage("Speech recognition is not initialized. Please refresh the page if this persists.");
-            }
         });
 
-        submitTextButton.addEventListener('click', () => {
-            const inputText = textInput.value.trim();
-            if (!inputText) {
-                showMessage("Please enter a movie title or YouTube link.");
-                return;
-            }
+        // File Upload Handler
+        videoUpload.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                selectedFileName.textContent = file.name;
+                showLoading(true);
+                messageText.textContent = "Processing video...";
 
-            selectedInput = inputText;
-            inputType = getYouTubeVideoId(selectedInput) ? 'youtube' : 'movie';
-            const confirmationText = inputType === 'youtube' ?
-                `You entered a YouTube link. Now, what length of radio drama would you like? Say "short", "medium", or "long".` :
-                `You entered "${selectedInput}". Now, what length of radio drama would you like? Say "short", "medium", or "long".`;
+                const formData = new FormData();
+                formData.append('video', file);
+                formData.append('user_id', userId);
 
-            showMessage(confirmationText, true);
-            speakAgentMessage(confirmationText);
-            currentState = STATE_WAITING_FOR_LENGTH;
-            startButton.disabled = true; // Disable voice button when using text input
-            submitTextButton.disabled = true; // Disable text button while waiting for voice input for length
-            textInput.disabled = true;
-
-            // Ensure speech recognition starts for the length prompt
-            if (speechRecognition) {
                 try {
-                    speechRecognition.start();
-                } catch (e) {
-                    console.warn("Speech recognition already active or other error on text input submit:", e);
-                }
-            }
-        });
+                    const response = await fetch('http://127.0.0.1:8000/api/process-video/', {
+                        method: 'POST',
+                        body: formData
+                    });
 
-
-        playPauseButton.addEventListener('click', () => {
-            if (window.speechSynthesis.speaking) {
-                if (isSpeakingQueued && !window.speechSynthesis.paused) { // If currently speaking a queued item and not paused
-                    window.speechSynthesis.pause();
-                    if (backgroundSynth) backgroundSynth.stop();
-                    updatePlayPauseButton('play');
-                } else if (window.speechSynthesis.paused) { // If paused, resume
-                    window.speechSynthesis.resume();
-                    if (backgroundSynth) backgroundSynth.triggerAttackRelease("C2", "8n");
-                    updatePlayPauseButton('pause');
-                } else { // Agent is speaking, or something unexpected, stop everything
-                    window.speechSynthesis.cancel();
-                    if (backgroundSynth) backgroundSynth.stop();
-                    speechQueue = [];
-                    isSpeakingQueued = false;
-                    updatePlayPauseButton('play');
+                    const data = await response.json();
+                    if (response.ok) {
+                        messageText.textContent = data.description;
+                    } else {
+                        throw new Error(data.error || 'Failed to process video');
+                    }
+                } catch (error) {
+                    messageText.textContent = `Error: ${error.message}`;
+                    console.error('Error:', error);
+                } finally {
+                    showLoading(false);
                 }
-            } else if (currentState === STATE_READY_TO_PLAY && speechQueue.length === 0) {
-                // If nothing is speaking but we have a description ready (e.g., was played and finished)
-                // This means we need to re-prepare the drama from the last generated text.
-                // For simplicity, we'll just indicate it's ready to play the last one if available.
-                // To replay, the user would need to initiate a new request via voice or text input.
-                showMessage("Please initiate a new request to generate and play a new radio drama.");
-                updatePlayPauseButton('play'); // Ensure button is 'Play'
             }
         });
 
         // --- Initial Setup ---
         window.onload = () => {
-            initializeFirebase(); // Initialize Firebase first
-            initSpeechRecognition(); // Then initialize speech recognition
-            showMessage("Click 'Start Voice Agent' or enter a movie/YouTube link to begin.");
+            initializeFirebase();
+            showMessage("Upload a video or enter a YouTube link to begin.");
         };
-
-        // Ensure speech synthesis is stopped if user navigates away or refreshes
-        window.addEventListener('beforeunload', () => {
-            window.speechSynthesis.cancel();
-            if (backgroundSynth) {
-                backgroundSynth.dispose();
-            }
-        });
-
     </script>
 </body>
 </html>

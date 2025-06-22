@@ -6,11 +6,14 @@ import time
 import google.generativeai as genai
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 import sys
+from django.conf import settings
 
 class VideoProcessor:
     def __init__(self, api_key: Optional[str] = None):
         """Initialize the VideoProcessor with Gemini client."""
-        self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
+        self.api_key = api_key or settings.GOOGLE_API_KEY
+        if not self.api_key:
+            raise ValueError("Google API key is required")
         genai.configure(api_key=self.api_key)
         self.model = genai.GenerativeModel('models/gemini-2.5-flash')
         
