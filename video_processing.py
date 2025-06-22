@@ -111,7 +111,7 @@ def main():
     
     # Extract frames
     print("Extracting frames...")
-    frames = processor.extract_frames(video_path, 10) # modify based on the video length
+    frames = processor.extract_frames(video_path, 120) # modify based on the video length
     print(f"Extracted {len(frames)} frames")
     
     # Generate description

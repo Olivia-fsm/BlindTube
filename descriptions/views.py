@@ -1,5 +1,5 @@
 """
-pip install opencv-python google-generativeai
+pip install opencv-python google-generativeai yt-dlp
 python manage.py runserver
 """
 
@@ -20,6 +20,7 @@ import mimetypes
 import logging
 import time
 from gtts import gTTS
+import yt_dlp
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -211,19 +212,125 @@ def process_youtube(request):
     """
     Process a YouTube URL to generate description.
     Expects a YouTube URL in the request body.
+    Downloads the video in 240p resolution using yt-dlp.
     """
     youtube_url = request.data.get('youtube_url')
     if not youtube_url:
         return Response({'error': 'No YouTube URL provided'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        # TODO: Add YouTube video download functionality
-        # For now, return an error
-        return Response({'error': 'YouTube processing not implemented yet'}, 
-                       status=status.HTTP_501_NOT_IMPLEMENTED)
+        # Create videos directory if it doesn't exist
+        upload_dir = os.path.join(settings.MEDIA_ROOT, 'videos')
+        os.makedirs(upload_dir, exist_ok=True)
+
+        # Generate unique filename
+        filename = f"{uuid.uuid4()}.mp4"
+        output_path = os.path.join(upload_dir, filename)
+
+        def my_hook(d):
+            if d['status'] == 'downloading':
+                logger.debug(f"Downloading: {d.get('_percent_str', '0%')} of {d.get('_total_bytes_str', 'unknown size')}")
+            elif d['status'] == 'finished':
+                logger.debug('Download complete')
+
+        # Configure yt-dlp options
+        ydl_opts = {
+            'format': 'worst',  # Always select the lowest quality available
+            'outtmpl': output_path,
+            'progress_hooks': [my_hook],
+            'verbose': True,
+            'no_warnings': False,
+            'extract_flat': False,
+            'quiet': False,
+        }
+
+        # Download the video
+        logger.debug(f"Starting download of YouTube video: {youtube_url}")
+        logger.debug(f"Using options: {ydl_opts}")
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            try:
+                # First, try to extract video information
+                info = ydl.extract_info(youtube_url, download=False)
+                
+                # Log available formats
+                logger.debug("Available formats:")
+                formats = sorted(info['formats'], key=lambda x: (x.get('width', 0) or 0) * (x.get('height', 0) or 0))
+                for f in formats:
+                    logger.debug(f"Format: {f.get('format_id', 'N/A')} - "
+                               f"Width: {f.get('width', 'N/A')}px - "
+                               f"Height: {f.get('height', 'N/A')}px - "
+                               f"Extension: {f.get('ext', 'N/A')} - "
+                               f"Filesize: {f.get('filesize', 'N/A')}")
+                
+                # Then download
+                logger.debug("Starting download with lowest quality format...")
+                ydl.download([youtube_url])
+                
+            except yt_dlp.utils.DownloadError as e:
+                logger.error(f"Download error: {str(e)}")
+                return Response({
+                    'error': f'Failed to download video: {str(e)}',
+                    'status': 'error',
+                    'available_formats': [f"{f.get('format_id', 'N/A')} - {f.get('width', 'N/A')}x{f.get('height', 'N/A')}" for f in formats]
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not os.path.exists(output_path):
+            return Response({
+                'error': 'Failed to download video - file not created',
+                'status': 'error'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        logger.debug(f"Video downloaded successfully to: {output_path}")
+
+        # Initialize video processor
+        api_key = settings.GOOGLE_API_KEY
+        if not api_key:
+            return Response({
+                'error': 'Google API key not configured',
+                'status': 'error'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        processor = VideoProcessor(api_key=api_key)
+
+        # Extract frames and generate description
+        frames = processor.extract_frames(output_path, frame_interval=10)
+        if not frames:
+            return Response({
+                'error': 'Failed to extract frames from video',
+                'status': 'error'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        description_text = processor.generate_description(frames)
+        if not description_text:
+            return Response({
+                'error': 'Failed to generate description',
+                'status': 'error'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Store the description in the database
+        description = AudioDescription.objects.create(
+            input_text=youtube_url,
+            input_type='youtube',
+            description_text=description_text,
+            description_length='medium',
+            user_id=request.data.get('user_id', 'anonymous')
+        )
+
+        return Response({
+            'status': 'success',
+            'description': description_text,
+            'description_id': description.id,
+            'video_path': os.path.relpath(output_path, settings.MEDIA_ROOT),
+            'description_length': len(description_text)
+        })
 
     except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        logger.error(f"Error processing YouTube video: {str(e)}", exc_info=True)
+        return Response({
+            'error': str(e),
+            'status': 'error'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 def get_audio(request, filename):
