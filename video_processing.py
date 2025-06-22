@@ -121,8 +121,6 @@ def main():
     output_dir = os.path.dirname(video_path)
     output_path = os.path.join(output_dir, "video_description.txt")
     with open(output_path, "w") as f:
-        f.write("Video Description:\n")
-        f.write("================\n")
         f.write(description)
     print(f"\nDescription saved to {output_path}")
 
