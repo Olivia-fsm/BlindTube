@@ -25,4 +25,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('descriptions.urls')),
     path('', TemplateView.as_view(template_name='app.html'), name='home'),
+    path('description_detail.html', TemplateView.as_view(template_name='description_detail.html'), name='description_detail'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

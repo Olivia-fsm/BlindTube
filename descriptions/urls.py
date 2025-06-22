@@ -10,4 +10,5 @@ urlpatterns = [
     path('process-video/', views.process_video, name='process-video'),
     path('process-youtube/', views.process_youtube, name='process-youtube'),
     path('audio/<str:filename>', views.get_audio, name='get-audio'),
+    path('generate-audio/', views.generate_audio, name='generate-audio'),
 ] 

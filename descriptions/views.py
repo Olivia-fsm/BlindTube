@@ -19,6 +19,7 @@ import uuid
 import mimetypes
 import logging
 import time
+from gtts import gTTS
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -233,3 +234,52 @@ def get_audio(request, filename):
     if os.path.exists(audio_path):
         return FileResponse(open(audio_path, 'rb'), content_type='audio/mpeg')
     return Response({'error': 'Audio file not found'}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['POST'])
+def generate_audio(request):
+    """
+    Generate audio from text using Google Text-to-Speech.
+    Expects a JSON with text and description_id fields.
+    """
+    try:
+        text = request.data.get('text')
+        description_id = request.data.get('description_id')
+        
+        if not text:
+            return Response({
+                'error': 'No text provided',
+                'status': 'error'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Create output directory if it doesn't exist
+        output_dir = 'audio_outputs'
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Generate unique filename
+        filename = f"{description_id if description_id else uuid.uuid4()}_audio.mp3"
+        output_path = os.path.join(output_dir, filename)
+        
+        # Create gTTS object and save audio file
+        tts = gTTS(text=text, lang='en', slow=False)
+        tts.save(output_path)
+        
+        # Update the AudioDescription model if description_id is provided
+        if description_id:
+            try:
+                description = AudioDescription.objects.get(id=description_id)
+                description.audio_url = filename
+                description.save()
+            except AudioDescription.DoesNotExist:
+                logger.warning(f"AudioDescription with id {description_id} not found")
+        
+        return Response({
+            'status': 'success',
+            'audio_url': filename
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating audio: {str(e)}", exc_info=True)
+        return Response({
+            'error': f'Error generating audio: {str(e)}',
+            'status': 'error'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
